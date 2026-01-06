@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Review;
+use Illuminate\Support\Facades\DB;
 
 class ReviewRepository
 {
@@ -27,5 +28,10 @@ class ReviewRepository
             ->orderBy('created_at', 'DESC')
             ->offset($page)
             ->first();
+    }
+
+    public function countByCompanyId(int $company_id)
+    {
+        return DB::table('reviews')->where('company_id', $company_id)->count();
     }
 }

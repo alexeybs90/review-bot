@@ -28,19 +28,22 @@ class ReviewBotController extends Controller
     {
 //        Company::create(['name' => 'Сбербанк']);
         $response = $this->service->info();
-        dd($response);
+        print_r($response);
+        return;
     }
 
     public function sendTest(Request $request)
     {
         $response = $this->service->sendTest();
-        dd($response);
+        print_r($response);
+        return;
     }
 
     public function setWebhook(Request $request)
     {
         $response = $this->service->setWebhook();
-        dd($response);
+        print_r($response);
+        return;
     }
 
     public function handle(Request $request)
@@ -52,6 +55,7 @@ class ReviewBotController extends Controller
         if (!$message && $callback_query) $message = $callback_query['message'];
         $chat = (string)$message['chat']['id'];
         $text = $message['text'] ?? '';
+        $message_id = $message['message_id'] ?? '';
         $name = $message['from']['first_name'];
         $phone = $message['contact']['phone_number'] ?? '';
         $callback_query_data_str = $callback_query ? $callback_query['data'] : '';
@@ -71,7 +75,7 @@ class ReviewBotController extends Controller
 
         if ($text === '/search_company' || $text === 'Поиск компании' || $callback_query_data_action === 'search_company') {
             $page = $callback_query_data && isset($callback_query_data[1]) ? $callback_query_data[1] : 0;
-            $this->service->sendCompanies($chat, $page);
+            $this->service->sendCompanies($chat, $page, $message_id, $text);
             return response()->json([]);
         }
 

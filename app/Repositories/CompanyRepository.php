@@ -3,10 +3,11 @@
 namespace App\Repositories;
 
 use App\Models\Company;
+use Illuminate\Support\Facades\DB;
 
 class CompanyRepository
 {
-    const LIMIT = 5;
+    const LIMIT = 10;
 
     public function find($id)
     {
@@ -15,6 +16,15 @@ class CompanyRepository
 
     public function get($page = 0)
     {
-        return Company::orderBy('name', 'ASC')->offset($page * self::LIMIT)->limit(self::LIMIT)->get();
+        return Company::with('reviews')
+            ->orderBy('name', 'ASC')
+            ->offset($page * self::LIMIT)
+            ->limit(self::LIMIT)
+            ->get();
+    }
+
+    public function count()
+    {
+        return DB::table('companies')->count();
     }
 }
