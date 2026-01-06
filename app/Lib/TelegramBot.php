@@ -34,7 +34,18 @@ class TelegramBot
         if ($reply_markup) {
             $data['reply_markup'] = json_encode($reply_markup);
         }
-        return Http::get($this->apiUrl() . 'sendMessage', $data)->json();
+        return Http::post($this->apiUrl() . 'sendMessage', $data)->json();
+    }
+
+    public function editMessageText(string $chat, int $message_id, string $text, array $reply_markup = null)
+    {
+        $data = [
+            'chat_id' => $chat,
+            'message_id' => $message_id,
+            'text' => $text,
+            'reply_markup' => $reply_markup ? json_encode($reply_markup) : null
+        ];
+        return Http::post($this->apiUrl() . 'editMessageText', $data)->json();
     }
 
     public function setWebhook()

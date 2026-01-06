@@ -80,12 +80,13 @@ class ReviewBotService
         Log::debug('sendPhoneButton = ' . json_encode($response));
     }
 
-    public function sendCompanies($chat, $page = 0)
+    public function sendCompanies($chat, $page, $message_id, $text)
     {
-        $companies = $this->companyRepository->get($page); //TODO: sql optimize - use JOIN, GROUP BY etc
+        $companies = $this->companyRepository->get($page);
+        $count = $this->companyRepository->count();
         $keys = [];
         foreach ($companies as $company) {
-            $reviews = $this->reviewRepository->findByCompanyId($company->id);
+            $reviews = $company->reviews;
             $rating = 0;
             if ($reviews && count($reviews) > 0) {
                 foreach ($reviews as $review) {
@@ -105,13 +106,27 @@ class ReviewBotService
             ];
         }
         if (!$companies || !count($companies)) return;
-        $keys[] = [[
-            'text' => 'Загрузить еще',
-            'callback_data' => 'search_company:' . ($page + 1),
-        ]];
+        if ($count > ($page * $this->companyRepository::LIMIT + count($companies))) {
+            $keys[] = [[
+                'text' => 'Загрузить еще',
+                'callback_data' => 'search_company:' . ($page + 1),
+            ]];
+        }
+
+        if (false && $page > 0) {
+            //удалим кнопку загрузить еще
+            $response = $this->telegramBot->editMessageText(
+                $chat,
+                $message_id,
+                $text,
+                null
+            );
+            Log::debug('editMessageText = ' . json_encode($response));
+        }
+
         $response = $this->telegramBot->sendMessage(
             $chat,
-            'Выберите компанию. Вы можете посмотреть отзывы или написать свой.',
+            'Найдено ' . $count . '. Выберите компанию. Вы можете посмотреть отзывы или написать свой.',
             [
                 'keyboard' => [],
                 'inline_keyboard' => $keys,
@@ -156,23 +171,29 @@ class ReviewBotService
     public function sendCompanyReview($chat, $company_id, $page = 0)
     {
         $review = $this->reviewRepository->findOneByCompanyId($company_id, $page);
+        $count = $this->reviewRepository->countByCompanyId($company_id);
         if (!$review) {
             $this->telegramBot->sendMessage($chat, 'Не найдено');
             return;
         }
         $company = $this->companyRepository->find($company_id);
         $user = $this->chatRepository->find($review->chat_id);
-        $text = "Отзыв на компанию {$company->name}:" . chr(10)
+        $text = "Отзыв на компанию {$company->name} (" . ($page + 1) . " из {$count}):" . chr(10)
             . 'Имя: ' . $user->name . chr(10)
             . "Оценка: {$review->grade} ⭐" . chr(10)
             . "Текст: {$review->comment}" . chr(10)
             . "Дата: {$review->created_at}" . chr(10);
-        $response = $this->telegramBot->sendMessage($chat, $text, [
-            'keyboard' => [],
-            'inline_keyboard' => [[[
+        $key = [];
+        if ($count > $page + 1) {
+            $key = [[[
                 'text' => 'Следующий >>',
                 'callback_data' => 'show_reviews_company_id:' . $company_id . ':' . ($page + 1),
-            ]]],
+            ]]];
+        }
+
+        $response = $this->telegramBot->sendMessage($chat, $text, [
+            'keyboard' => [],
+            'inline_keyboard' => $key,
             'one_time_keyboard' => true,
             'resize_keyboard' => true
         ]);
