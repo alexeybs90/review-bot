@@ -54,4 +54,17 @@ class TelegramBot
             'url' => $this->api_webhook_url,
         ])->json();
     }
+
+    public function getFile(string $file_id)
+    {
+        $data = [
+            'file_id' => $file_id,
+        ];
+        return Http::post($this->apiUrl() . 'getFile', $data)->json();
+    }
+
+    public function fileUrl($file_path)
+    {
+        return 'https://api.telegram.org/file/bot' . $this->api_key . '/' . $file_path;
+    }
 }

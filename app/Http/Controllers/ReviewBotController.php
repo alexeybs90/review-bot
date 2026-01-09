@@ -61,6 +61,7 @@ class ReviewBotController extends Controller
         $callback_query_data_str = $callback_query ? $callback_query['data'] : '';
         $callback_query_data = explode(':', $callback_query_data_str);
         $callback_query_data_action = $callback_query_data ? $callback_query_data[0] : '';
+        $photo = $message['photo'] ?? [];
 
         $user = $this->service->findOrCreateUser($chat, $name); //TODO: убрать из контроллера в сервис
         if (!$phone && !$user->phone) {
@@ -90,6 +91,9 @@ class ReviewBotController extends Controller
                     $grade = $callback_query_data[2];
                     $this->service->sendCompanyGrade($chat, $company_id, $grade);
                     return response()->json([]);
+                case 'save_review_from_context':
+                    $this->service->saveReviewFromContext($user);
+                    return response()->json([]);
                 case 'show_reviews_company_id':
                     $company_id = $callback_query_data[1];
                     $page = $callback_query_data[2] ?? 0;
@@ -98,7 +102,7 @@ class ReviewBotController extends Controller
             }
         }
 
-        if ($this->service->handleContextActions($chat, $user, $text)) {
+        if ($this->service->handleContextActions($user, $text, $photo)) {
             return response()->json([]);
         }
 
