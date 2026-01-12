@@ -11,7 +11,11 @@ use App\Repositories\ChatRepository;
 use App\Repositories\CompanyRepository;
 use App\Repositories\ContextRepository;
 use App\Repositories\ReviewRepository;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class ReviewBotService
 {
@@ -264,9 +268,28 @@ class ReviewBotService
         if ($photoItem) {
             $file = $this->telegramBot->getFile($photoItem['file_id']);
             $file = $file['result'] ?? [];
+            $fileUrl = $this->telegramBot->fileUrl($file['file_path'] ?? '');
+            $response = Http::get($fileUrl);
+            if ($response->successful()) {
+//                $path = Storage::disk('public')->putFile('photos', $response->body());
+                $fileContent = $response->body();
+                $originalName = basename($fileUrl);
+                $mimeType = $response->header('Content-Type');
+
+                $tempFilePath = tempnam(sys_get_temp_dir(), 'laravel_download');
+                file_put_contents($tempFilePath, $fileContent);
+
+                $file = new UploadedFile($tempFilePath, $originalName, $mimeType, null, true);
+
+                Storage::disk('public')->put(
+                    'photos/' . $file->hashName() . '.' . $file->extension()
+                    , $response->body()
+                );
+                unlink($tempFilePath);
+            }
             $text .= 'file_id: ' . $photoItem['file_id']  . chr(10)
                 . 'file_unique_id: ' . $photoItem['file_unique_id'] . chr(10)
-                . $this->telegramBot->fileUrl($file['file_path'] ?? '') . chr(10)
+                . $fileUrl . chr(10)
             ;
             $files[] = $photoItem['file_id'];
         }
