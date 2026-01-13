@@ -24,7 +24,8 @@ class ReviewRepository
 
     public function findOneByCompanyId(int $company_id, $page = 0)
     {
-        return Review::where('company_id', $company_id)
+        return Review::with('reviewFiles')
+            ->where('company_id', $company_id)
             ->orderBy('created_at', 'DESC')
             ->offset($page)
             ->first();
