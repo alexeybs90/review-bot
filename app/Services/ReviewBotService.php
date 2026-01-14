@@ -7,15 +7,22 @@ use App\Models\Chat;
 use App\Models\Company;
 use App\Models\Context;
 use App\Models\Review;
+use App\Models\ReviewFile;
 use App\Repositories\ChatRepository;
 use App\Repositories\CompanyRepository;
 use App\Repositories\ContextRepository;
+use App\Repositories\ReviewFileRepository;
 use App\Repositories\ReviewRepository;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class ReviewBotService
 {
     const CONTEXT_STATUS_WAIT_REVIEW_TEXT = 'waiting_review_comment';
+    const CONTEXT_STATUS_WAIT_REVIEW_FILES = 'waiting_review_files';
 
     protected CompanyRepository $companyRepository;
     protected ContextRepository $contextRepository;
@@ -141,7 +148,7 @@ class ReviewBotService
     public function sendCompany($chat, $company_id, $user_chat_id)
     {
         $company = $this->companyRepository->find($company_id);
-        if (!$company) return; //TODO: send error not found
+        if (!$company) return;
         $keys = [];
         for ($i = 1; $i <= 5; $i ++) {
             $keys[] = [
@@ -149,7 +156,7 @@ class ReviewBotService
                 'callback_data' => 'send_company_grade:' . $company_id . ':' . $i,
             ];
         }
-        $text = 'Поставьте оценку для ' . $company->name;
+        $text = 'Шаг 1. Поставьте оценку для ' . $company->name;
         $review = $this->reviewRepository->findByChatIdAndCompanyId($user_chat_id, $company_id);
         if ($review) {
             $text = "Вы уже оставляли отзыв на компанию {$company->name}:" . chr(10)
@@ -197,8 +204,14 @@ class ReviewBotService
             'one_time_keyboard' => true,
             'resize_keyboard' => true
         ]);
-        $this->contextRepository->reset($chat);
         Log::debug('sendCompanyReview = ' . json_encode($response));
+
+        if ($review->reviewFiles && count($review->reviewFiles) > 0) {
+            $response = $this->telegramBot->sendPhotos($chat, $review->reviewFiles);
+        }
+
+        $this->contextRepository->reset($chat);
+        Log::debug('sendPhotos (sendMediaGroup) = ' . json_encode($response));
     }
 
     public function sendCompanyGrade($chat, $company_id, $grade)
@@ -206,13 +219,9 @@ class ReviewBotService
         $company = $this->companyRepository->find($company_id);
         $response = $this->telegramBot->sendMessage(
             $chat,
-            'Вы поставили оценку ' . $grade . ' для ' . $company->name . '. Теперь напишите отзыв',
-            [
-                'keyboard' => [],
-                'inline_keyboard' => [],
-                'one_time_keyboard' => true,
-                'resize_keyboard' => true
-            ]);
+            'Вы поставили оценку ' . $grade . ' для ' . $company->name . '.'  . chr(10)
+            . 'Шаг 2. Напишите отзыв'
+        );
         Log::debug('sendCompanyGrade = ' . json_encode($response));
         $context = $this->contextRepository->findByChat($chat);
         if (!$context) $context = new Context();
@@ -220,32 +229,155 @@ class ReviewBotService
         $context->status = self::CONTEXT_STATUS_WAIT_REVIEW_TEXT;
         $context->company_id = $company_id;
         $context->grade = $grade;
+        $context->comment = '';
+        $context->files = json_encode([]);
         $this->contextRepository->save($context);
         Log::debug('set session context: id=' . $context->id . ', chat=' . $context->chat
-            . ', company_id=' . $context->company_id . ', grade=' . $context->grade);
+            . ', company_id=' . $context->company_id . ', grade=' . $context->grade . ', status=' . $context->status
+            . ', comment=' . $context->comment);
     }
 
-    public function handleContextActions(string $chat, Chat $user, string $text): bool
+    public function handleReviewComment($chat, $comment, $context)
     {
-        $context = $this->contextRepository->findByChat($chat);
+        if (!$context) return;
+        $company = $this->companyRepository->find($context->company_id);
+        $context->status = self::CONTEXT_STATUS_WAIT_REVIEW_FILES;
+        $context->comment = $comment;
+        $this->contextRepository->save($context);
+        Log::debug('set session context: id=' . $context->id . ', chat=' . $context->chat
+            . ', company_id=' . $context->company_id . ', grade=' . $context->grade . ', status=' . $context->status
+            . ', comment=' . $context->comment);
+
+        $response = $this->telegramBot->sendMessage(
+            $chat,
+            'Вы поставили оценку ' . $context->grade . ' для ' . $company->name . '.'  . chr(10)
+            . 'Текст: ' . $comment  . chr(10)
+            . 'Шаг 3. Отправьте до 3х фото или сразу нажмите Сохранить',
+            [
+                'keyboard' => [],
+                'inline_keyboard' => [[[
+                    'text' => 'Сохранить',
+                    'callback_data' => 'save_review_from_context',
+                ]]],
+                'one_time_keyboard' => true,
+                'resize_keyboard' => true
+            ]);
+        Log::debug('handleReviewComment sendMessage=' . json_encode($response));
+    }
+
+    public function handleReviewFiles($chat, $photo, $context)
+    {
+        if (!$context) return;
+        $text = 'Загружено фото...';
+        $files = $context->files ? json_decode($context->files) : [];
+        //телеграм отправляет каждое фото из сообщения в отдельном запросе в разных разрешениях,
+        // самое большое 1280х... это последнее в массиве photo
+        $photoItem = $photo[count($photo) - 1] ?? null;
+        if ($photoItem) {
+            $files[] = ['file_id' => $photoItem['file_id'], 'file_unique_id' => $photoItem['file_unique_id']];
+        }
+        $context->files = json_encode($files);
+        $this->contextRepository->save($context);
+        Log::debug('set session context: id=' . $context->id . ', chat=' . $context->chat
+            . ', company_id=' . $context->company_id . ', grade=' . $context->grade . ', status=' . $context->status
+            . ', comment=' . $context->comment. ', files=' . $context->files);
+
+        $response = $this->telegramBot->sendMessage(
+            $chat,
+            $text,
+            [
+                'inline_keyboard' => [[[
+                    'text' => 'Сохранить отзыв',
+                    'callback_data' => 'save_review_from_context',
+                ]]]
+            ]
+        );
+        Log::debug('handleReviewFiles sendMessage=' . json_encode($response));
+    }
+
+    public function saveFileFromUser(string $tg_file_id): ?string
+    {
+        $fileData = $this->telegramBot->getFile($tg_file_id);
+        $fileData = $fileData['result'] ?? [];
+        if (!$fileData) return null;
+
+        $fileUrl = $this->telegramBot->fileUrl($fileData['file_path'] ?? '');
+        if (!$fileUrl) return null;
+
+        $response = Http::get($fileUrl);
+        if (!$response->successful()) return null;
+
+        $fileContent = $response->body();
+        $originalName = basename($fileUrl);
+        $mimeType = $response->header('Content-Type');
+
+        $tempFilePath = tempnam(sys_get_temp_dir(), 'laravel_download');
+        file_put_contents($tempFilePath, $fileContent);
+
+        $file = new UploadedFile($tempFilePath, $originalName, $mimeType, null, true);
+        $filePath = 'review_files/' . $file->hashName();
+        Storage::disk('public')->put($filePath, $response->body());
+        unlink($tempFilePath);
+
+        return $filePath;
+    }
+
+    public function handleContextActions(Chat $user, string $text, $photo = []): bool
+    {
+        $context = $this->contextRepository->findByChat($user->chat);
         Log::debug('read session context: id=' . $context?->id . ', chat=' . $context?->chat
             . ', company_id=' . $context?->company_id . ', grade=' . $context?->grade . ', status=' . $context?->status);
-        if (!$context || $context->chat !== $chat) return false;
+        if (!$context || $context->chat !== $user->chat) return false;
         if ($context->status === self::CONTEXT_STATUS_WAIT_REVIEW_TEXT && $context->company_id && $context->grade) {
-            $review = $this->reviewRepository->findByChatIdAndCompanyId($user->id, $context->company_id);
-            if (!$review) $review = new Review();
-            $review->chat_id = $user->id;
-            $review->company_id = $context->company_id;
-            $review->grade = $context->grade;
-            $review->comment = $text;
-            $this->reviewRepository->save($review);
-            Log::debug('review created: id=' . $review?->id . ', grade=' . $review?->grade
-                . ', company_id=' . $review->company_id . ', comment=' . $review->comment);
-            $this->contextRepository->delete($context);
-            $this->telegramBot->sendMessage($chat, 'Спасибо за отзыв!');
+            $this->handleReviewComment($user->chat, $text, $context);
+            return true;
+        } elseif ($context->status === self::CONTEXT_STATUS_WAIT_REVIEW_FILES && $context->company_id && $context->grade) {
+            $this->handleReviewFiles($user->chat, $photo, $context);
             return true;
         }
         return false;
+    }
+
+    public function saveReviewFromContext(Chat $user)
+    {
+        $context = $this->contextRepository->findByChat($user->chat);
+        if (!$context) return;
+        $review = $this->reviewRepository->findByChatIdAndCompanyId($user->id, $context->company_id);
+        if (!$review) $review = new Review();
+        $review->chat_id = $user->id;
+        $review->company_id = $context->company_id;
+        $review->grade = $context->grade;
+        $review->comment = $context->comment;
+        $this->reviewRepository->save($review);
+
+        $files = json_decode($context->files, true);
+        if ($files) {
+            //если загружают новые файлы, то удаляем старые
+            foreach ($review->reviewFiles as $reviewFile) {
+                unlink(storage_path('app/public/' . $reviewFile->path));
+                $reviewFile->delete();
+            }
+            for ($i = 0; $i < 3; $i ++) {
+                $fileData = $files[$i] ?? null;
+                if (!$fileData) continue;
+                $filePath = $this->saveFileFromUser($fileData['file_id']);
+                if (!$filePath) continue;
+                $file = new ReviewFile();
+                $file->review_id = $review->id;
+                $file->file_id = $fileData['file_id'];
+                $file->file_unique_id = $fileData['file_unique_id'];
+                $file->path = $filePath;
+                (new ReviewFileRepository())->save($file);
+
+            }
+        }
+
+        Log::debug('review saved: id=' . $review?->id . ', grade=' . $review?->grade
+            . ', company_id=' . $review?->company_id . ', comment=' . $review?->comment
+            . ', files=' . json_encode($files)
+        );
+        $this->contextRepository->delete($context);
+        $this->telegramBot->sendMessage($user->chat, 'Спасибо за отзыв!');
     }
 
     public function findOrCreateUser(string $chat, string $name): Chat //TODO: коряво

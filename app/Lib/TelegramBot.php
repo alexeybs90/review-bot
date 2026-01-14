@@ -37,6 +37,19 @@ class TelegramBot
         return Http::post($this->apiUrl() . 'sendMessage', $data)->json();
     }
 
+    public function sendPhotos(string $chat, $files)
+    {
+        $media = [];
+        foreach ($files as $file) {
+            $media[] = ['type' => 'photo', 'media' => $file->file_id];
+        }
+        $data = [
+            'chat_id' => $chat,
+            'media' => $media,
+        ];
+        return Http::post($this->apiUrl() . 'sendMediaGroup', $data)->json();
+    }
+
     public function editMessageText(string $chat, int $message_id, string $text, array $reply_markup = null)
     {
         $data = [
@@ -53,5 +66,18 @@ class TelegramBot
         return Http::get($this->apiUrl() . 'setWebhook', [
             'url' => $this->api_webhook_url,
         ])->json();
+    }
+
+    public function getFile(string $file_id)
+    {
+        $data = [
+            'file_id' => $file_id,
+        ];
+        return Http::post($this->apiUrl() . 'getFile', $data)->json();
+    }
+
+    public function fileUrl($file_path)
+    {
+        return 'https://api.telegram.org/file/bot' . $this->api_key . '/' . $file_path;
     }
 }
