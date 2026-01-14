@@ -14,7 +14,7 @@ class CompanyRepository
         return Company::find($id);
     }
 
-    public function get($page = 0)
+    public function get($page = 0): \Illuminate\Database\Eloquent\Collection
     {
         return Company::with('reviews')
             ->orderBy('name', 'ASC')
@@ -23,8 +23,25 @@ class CompanyRepository
             ->get();
     }
 
-    public function count()
+    public function getByName(string $name, $page = 0): \Illuminate\Database\Eloquent\Collection
     {
-        return DB::table('companies')->count();
+        return Company::with('reviews')
+            ->where('name', 'LIKE', "%{$name}%")
+            ->orderBy('name', 'ASC')
+            ->offset($page * self::LIMIT)
+            ->limit(self::LIMIT)
+            ->get();
+    }
+
+    public function count(): int
+    {
+        return DB::table((new Company())->getTable())->count();
+    }
+
+    public function countByName(string $name): int
+    {
+        return DB::table((new Company())->getTable())
+            ->where('name', 'LIKE', "%{$name}%")
+            ->count();
     }
 }

@@ -23,26 +23,113 @@ class ReviewBotService
 {
     const CONTEXT_STATUS_WAIT_REVIEW_TEXT = 'waiting_review_comment';
     const CONTEXT_STATUS_WAIT_REVIEW_FILES = 'waiting_review_files';
+    const CONTEXT_STATUS_WAIT_SEARCH_COMPANY = 'waiting_search_company';
 
-    protected CompanyRepository $companyRepository;
-    protected ContextRepository $contextRepository;
-    protected ReviewRepository $reviewRepository;
-    protected ChatRepository $chatRepository;
-    protected TelegramBot $telegramBot;
+    protected Chat $user;
+    protected array $message;
+    protected ?array $callback_query;
+    protected string $text;
+    protected string|int $message_id;
 
     public function __construct(
-        CompanyRepository $companyRepository,
-        ContextRepository $contextRepository,
-        ReviewRepository $reviewRepository,
-        ChatRepository $chatRepository,
-        TelegramBot $telegramBot,
-    )
+        protected CompanyRepository $companyRepository,
+        protected ContextRepository $contextRepository,
+        protected ReviewRepository $reviewRepository,
+        protected ChatRepository $chatRepository,
+        protected TelegramBot $telegramBot,
+    ) {}
+
+    public function initMessageData($message, $callback_query): bool
     {
-        $this->companyRepository = $companyRepository;
-        $this->contextRepository = $contextRepository;
-        $this->reviewRepository = $reviewRepository;
-        $this->chatRepository = $chatRepository;
-        $this->telegramBot = $telegramBot;
+        $this->callback_query = $callback_query;
+        if (!$message && $this->callback_query) $message = $this->callback_query['message'];
+        $this->message = $message;
+        $chat = (string)$this->message['chat']['id'];
+        $this->text = $this->message['text'] ?? '';
+        $this->message_id = $this->message['message_id'] ?? '';
+
+        $name = $this->message['from']['first_name'];
+        $phone = $this->message['contact']['phone_number'] ?? '';
+        $this->user = $this->chatRepository->findOrCreateUser($chat, $name);
+
+        if (!$phone && !$this->user->phone) {
+            $this->sendPhoneButton($chat);
+            return true;
+        } elseif ($phone && !$this->user->phone) {
+            $this->user->phone = $phone;
+            $this->chatRepository->save($this->user);
+            $this->sendHello();
+            return true;
+        }
+        return false;
+    }
+
+    public function handleTextRequest(): bool
+    {
+        if ($this->text === '/company_list' || $this->text === 'Все компании') {
+            $this->contextRepository->reset($this->user->chat);
+            $this->searchCompanies($this->user->chat, 0, $this->text);
+            return true;
+        } elseif ($this->text === '/search_company' || $this->text === 'Поиск компании') {
+            $this->setWaitCompanySearch($this->user->chat);
+            return true;
+        }
+        return false;
+    }
+
+    public function handleCallbackQueryRequest(): bool
+    {
+        $callback_query_data_str = $this->callback_query ? $this->callback_query['data'] : '';
+        $callback_query_data = explode(':', $callback_query_data_str);
+        $callback_query_data_action = $callback_query_data ? $callback_query_data[0] : '';
+        if (!$callback_query_data || !$callback_query_data_action) {
+            return false;
+        }
+        switch ($callback_query_data_action) {
+            case 'start_review_company_id':
+                $company_id = $callback_query_data[1];
+                $this->sendCompany($this->user->chat, $company_id, $this->user->id);
+                return true;
+            case 'send_company_grade':
+                $company_id = $callback_query_data[1];
+                $grade = $callback_query_data[2];
+                $this->sendCompanyGrade($this->user->chat, $company_id, $grade);
+                return true;
+            case 'save_review_from_context':
+                $this->saveReviewFromContext($this->user);
+                return true;
+            case 'show_reviews_company_id':
+                $company_id = $callback_query_data[1];
+                $page = $callback_query_data[2] ?? 0;
+                $this->sendCompanyReview($this->user->chat, $company_id, $page);
+                return true;
+            case 'company_list':
+                $page = $callback_query_data[1] ?? 0;
+                $text = $callback_query_data[2] ?? '';
+                $this->searchCompanies($this->user->chat, $page, $text);
+                return true;
+        }
+        return false;
+    }
+
+    public function handleContextActions(): bool
+    {
+        $photo = $this->message['photo'] ?? [];
+        $context = $this->contextRepository->findByChat($this->user->chat);
+        Log::debug('read session context: id=' . $context?->id . ', chat=' . $context?->chat
+            . ', company_id=' . $context?->company_id . ', grade=' . $context?->grade . ', status=' . $context?->status);
+        if (!$context || $context->chat !== $this->user->chat) return false;
+        if ($context->status === self::CONTEXT_STATUS_WAIT_REVIEW_TEXT && $context->company_id && $context->grade) {
+            $this->handleReviewComment($this->user->chat, $this->text, $context);
+            return true;
+        } elseif ($context->status === self::CONTEXT_STATUS_WAIT_REVIEW_FILES && $context->company_id && $context->grade) {
+            $this->handleReviewFiles($this->user->chat, $photo, $context);
+            return true;
+        } elseif ($context->status === self::CONTEXT_STATUS_WAIT_SEARCH_COMPANY) {
+            $this->searchCompanies($this->user->chat, 0, $this->text);
+            return true;
+        }
+        return false;
     }
 
     public function info()
@@ -60,37 +147,45 @@ class ReviewBotService
         return $this->telegramBot->setWebhook();
     }
 
-    public function sendHello($chat)
+    public function sendHello()
     {
-        $response = $this->telegramBot->sendMessage($chat, 'Выберите кнопку ниже', [
+        $response = $this->telegramBot->sendMessage($this->user->chat, 'Выберите кнопку ниже', [
             'keyboard' => [
                 [
+                    ['text' => 'Все компании'],
                     ['text' => 'Поиск компании'],
                     ['text' => 'Мои отзывы'],
                 ]
             ],
-            'one_time_keyboard' => true, // Кнопка исчезнет после нажатия
-            'resize_keyboard' => true    // Оптимизирует размер клавиатуры
+            'one_time_keyboard' => true,
+            'resize_keyboard' => true,
         ]);
         Log::debug('sendHello = ' . json_encode($response));
     }
 
-    public function sendPhoneButton($chat)
+    public function sendPhoneButton(string $chat)
     {
         $response = $this->telegramBot->sendMessage($chat, 'Пожалуйста, предоставьте доступ к номеру телефона', [
             'keyboard' => [[
                 ['text' => 'Поделиться контактом', 'request_contact' => true]
             ]],
-            'one_time_keyboard' => true, // Кнопка исчезнет после нажатия
-            'resize_keyboard' => true    // Оптимизирует размер клавиатуры
+            'one_time_keyboard' => true,
+            'resize_keyboard' => true,
         ]);
         Log::debug('sendPhoneButton = ' . json_encode($response));
     }
 
-    public function sendCompanies($chat, $page, $message_id, $text)
+    public function searchCompanies(string $chat, int $page, $text = '')
     {
-        $companies = $this->companyRepository->get($page);
-        $count = $this->companyRepository->count();
+        $context = $this->contextRepository->findByChat($chat);
+        if ($context && $context->status === self::CONTEXT_STATUS_WAIT_SEARCH_COMPANY && $text) {
+            $companies = $this->companyRepository->getByName($text, $page);
+            $count = $this->companyRepository->countByName($text);
+        } else {
+            $companies = $this->companyRepository->get($page);
+            $count = $this->companyRepository->count();
+        }
+
         $keys = [];
         foreach ($companies as $company) {
             $reviews = $company->reviews;
@@ -116,11 +211,11 @@ class ReviewBotService
         if ($count > ($page * $this->companyRepository::LIMIT + count($companies))) {
             $keys[] = [[
                 'text' => 'Загрузить еще',
-                'callback_data' => 'search_company:' . ($page + 1),
+                'callback_data' => 'company_list:' . ($page + 1) . ':' . $text,
             ]];
         }
 
-        if (false && $page > 0) {
+        /*if ($page > 0) {
             //удалим кнопку загрузить еще
             $response = $this->telegramBot->editMessageText(
                 $chat,
@@ -129,11 +224,13 @@ class ReviewBotService
                 null
             );
             Log::debug('editMessageText = ' . json_encode($response));
-        }
+        }*/
 
         $response = $this->telegramBot->sendMessage(
             $chat,
-            'Найдено ' . $count . '. Выберите компанию. Вы можете посмотреть отзывы или написать свой.',
+            'Найдено ' . $count . "." . chr(10)
+            . "Нажмите кнопку слева, чтобы посмотреть отзывы." . chr(10)
+            . "Нажмите кнопку справа, чтобы написать/изменить свой отзыв.",
             [
                 'keyboard' => [],
                 'inline_keyboard' => $keys,
@@ -141,11 +238,11 @@ class ReviewBotService
                 'resize_keyboard' => true
             ]
         );
-        $this->contextRepository->reset($chat);
-        Log::debug('sendCompanies = ' . json_encode($response));
+//        $this->contextRepository->reset($chat);
+        Log::debug('searchCompanies = ' . json_encode($response));
     }
 
-    public function sendCompany($chat, $company_id, $user_chat_id)
+    public function sendCompany(string $chat, int $company_id, int $user_chat_id)
     {
         $company = $this->companyRepository->find($company_id);
         if (!$company) return;
@@ -175,7 +272,7 @@ class ReviewBotService
         Log::debug('sendCompany = ' . json_encode($response));
     }
 
-    public function sendCompanyReview($chat, $company_id, $page = 0)
+    public function sendCompanyReview(string $chat, int $company_id, int $page = 0)
     {
         $review = $this->reviewRepository->findOneByCompanyId($company_id, $page);
         $count = $this->reviewRepository->countByCompanyId($company_id);
@@ -214,7 +311,7 @@ class ReviewBotService
         Log::debug('sendPhotos (sendMediaGroup) = ' . json_encode($response));
     }
 
-    public function sendCompanyGrade($chat, $company_id, $grade)
+    public function sendCompanyGrade(string $chat, int $company_id, int $grade)
     {
         $company = $this->companyRepository->find($company_id);
         $response = $this->telegramBot->sendMessage(
@@ -237,7 +334,7 @@ class ReviewBotService
             . ', comment=' . $context->comment);
     }
 
-    public function handleReviewComment($chat, $comment, $context)
+    public function handleReviewComment(string $chat, string $comment, Context $context)
     {
         if (!$context) return;
         $company = $this->companyRepository->find($context->company_id);
@@ -265,9 +362,8 @@ class ReviewBotService
         Log::debug('handleReviewComment sendMessage=' . json_encode($response));
     }
 
-    public function handleReviewFiles($chat, $photo, $context)
+    public function handleReviewFiles(string $chat, array $photo, Context $context)
     {
-        if (!$context) return;
         $text = 'Загружено фото...';
         $files = $context->files ? json_decode($context->files) : [];
         //телеграм отправляет каждое фото из сообщения в отдельном запросе в разных разрешениях,
@@ -322,22 +418,6 @@ class ReviewBotService
         return $filePath;
     }
 
-    public function handleContextActions(Chat $user, string $text, $photo = []): bool
-    {
-        $context = $this->contextRepository->findByChat($user->chat);
-        Log::debug('read session context: id=' . $context?->id . ', chat=' . $context?->chat
-            . ', company_id=' . $context?->company_id . ', grade=' . $context?->grade . ', status=' . $context?->status);
-        if (!$context || $context->chat !== $user->chat) return false;
-        if ($context->status === self::CONTEXT_STATUS_WAIT_REVIEW_TEXT && $context->company_id && $context->grade) {
-            $this->handleReviewComment($user->chat, $text, $context);
-            return true;
-        } elseif ($context->status === self::CONTEXT_STATUS_WAIT_REVIEW_FILES && $context->company_id && $context->grade) {
-            $this->handleReviewFiles($user->chat, $photo, $context);
-            return true;
-        }
-        return false;
-    }
-
     public function saveReviewFromContext(Chat $user)
     {
         $context = $this->contextRepository->findByChat($user->chat);
@@ -380,13 +460,18 @@ class ReviewBotService
         $this->telegramBot->sendMessage($user->chat, 'Спасибо за отзыв!');
     }
 
-    public function findOrCreateUser(string $chat, string $name): Chat //TODO: коряво
+    public function setWaitCompanySearch(string $chat)
     {
-        return $this->chatRepository->findOrCreateUser($chat, $name);
-    }
-
-    public function saveUser(Chat $user): bool
-    {
-        return $this->chatRepository->save($user);
+        $context = $this->contextRepository->findByChat($chat);
+        if (!$context) $context = new Context();
+        $context->chat = $chat;
+        $context->status = self::CONTEXT_STATUS_WAIT_SEARCH_COMPANY;
+        $context->comment = '';
+        $context->files = json_encode([]);
+        $this->contextRepository->save($context);
+        Log::debug('set session context: id=' . $context->id . ', chat=' . $context->chat
+            . ', company_id=' . $context->company_id . ', grade=' . $context->grade . ', status=' . $context->status
+            . ', comment=' . $context->comment);
+        $this->telegramBot->sendMessage($chat, 'Введите название компании');
     }
 }
