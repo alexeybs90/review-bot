@@ -2,42 +2,29 @@
 
 namespace App\Http\Controllers;
 
-use App\Lib\TelegramBot;
-use App\Repositories\ChatRepository;
-use App\Repositories\CompanyRepository;
-use App\Repositories\ContextRepository;
-use App\Repositories\ReviewRepository;
 use App\Services\ReviewBotService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class ReviewBotController extends Controller
 {
-    public ReviewBotService $service;
+    public function __construct(protected ReviewBotService $service)
+    {}
 
-    public function __construct() {
-        $companyRepository = new CompanyRepository();
-        $contextRepository = new ContextRepository();
-        $reviewRepository = new ReviewRepository();
-        $chatRepository = new ChatRepository();
-        $telegramBot = new TelegramBot(config('app.telegram_bot_api_key'), config('app.telegram_bot_api_webhook_url'));
-        $this->service = new ReviewBotService($companyRepository, $contextRepository, $reviewRepository, $chatRepository, $telegramBot);
-    }
-
-    public function home(Request $request)
+    public function home()
     {
 //        Company::create(['name' => 'Сбербанк']);
         $response = $this->service->info();
         print_r($response);
     }
 
-    public function sendTest(Request $request)
+    public function sendTest()
     {
         $response = $this->service->sendTest();
         print_r($response);
     }
 
-    public function setWebhook(Request $request)
+    public function setWebhook()
     {
         $response = $this->service->setWebhook();
         print_r($response);
