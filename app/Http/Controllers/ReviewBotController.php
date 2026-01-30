@@ -29,84 +29,41 @@ class ReviewBotController extends Controller
 //        Company::create(['name' => 'Сбербанк']);
         $response = $this->service->info();
         print_r($response);
-        return;
     }
 
     public function sendTest(Request $request)
     {
         $response = $this->service->sendTest();
         print_r($response);
-        return;
     }
 
     public function setWebhook(Request $request)
     {
         $response = $this->service->setWebhook();
         print_r($response);
-        return;
     }
 
     public function handle(Request $request)
     {
         Log::debug('handler = ' . json_encode($request->post()));
 
-        $message = $request->post('message');
-        $callback_query = $request->post('callback_query');
-        if (!$message && $callback_query) $message = $callback_query['message'];
-        $chat = (string)$message['chat']['id'];
-        $text = $message['text'] ?? '';
-        $message_id = $message['message_id'] ?? '';
-        $name = $message['from']['first_name'];
-        $phone = $message['contact']['phone_number'] ?? '';
-        $callback_query_data_str = $callback_query ? $callback_query['data'] : '';
-        $callback_query_data = explode(':', $callback_query_data_str);
-        $callback_query_data_action = $callback_query_data ? $callback_query_data[0] : '';
-        $photo = $message['photo'] ?? [];
-
-        $user = $this->service->findOrCreateUser($chat, $name); //TODO: убрать из контроллера в сервис
-        if (!$phone && !$user->phone) {
-            $this->service->sendPhoneButton($chat);
-            return response()->json([]);
-        } elseif ($phone && !$user->phone) {
-            $user->phone = $phone;
-            $this->service->saveUser($user);
-            $this->service->sendHello($chat);
+        if ($this->service->initMessageData($request->post('message'), $request->post('callback_query'))) {
             return response()->json([]);
         }
 
-        if ($text === '/search_company' || $text === 'Поиск компании' || $callback_query_data_action === 'search_company') {
-            $page = $callback_query_data && isset($callback_query_data[1]) ? $callback_query_data[1] : 0;
-            $this->service->sendCompanies($chat, $page, $message_id, $text);
+        if ($this->service->handleTextRequest()) {
             return response()->json([]);
         }
 
-        if ($callback_query_data && $callback_query_data_action) {
-            switch ($callback_query_data_action) {
-                case 'start_review_company_id':
-                    $company_id = $callback_query_data[1];
-                    $this->service->sendCompany($chat, $company_id, $user->id);
-                    return response()->json([]);
-                case 'send_company_grade':
-                    $company_id = $callback_query_data[1];
-                    $grade = $callback_query_data[2];
-                    $this->service->sendCompanyGrade($chat, $company_id, $grade);
-                    return response()->json([]);
-                case 'save_review_from_context':
-                    $this->service->saveReviewFromContext($user);
-                    return response()->json([]);
-                case 'show_reviews_company_id':
-                    $company_id = $callback_query_data[1];
-                    $page = $callback_query_data[2] ?? 0;
-                    $this->service->sendCompanyReview($chat, $company_id, $page);
-                    return response()->json([]);
-            }
-        }
-
-        if ($this->service->handleContextActions($user, $text, $photo)) {
+        if ($this->service->handleCallbackQueryRequest()) {
             return response()->json([]);
         }
 
-        $this->service->sendHello($chat);
+        if ($this->service->handleContextActions()) {
+            return response()->json([]);
+        }
+
+        $this->service->sendHello();
 
         return response()->json([]);
     }
