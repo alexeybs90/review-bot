@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\TelegramWebHookRequest;
 use App\Services\ReviewBotService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -30,7 +32,7 @@ class ReviewBotController extends Controller
         print_r($response);
     }
 
-    public function handle(Request $request)
+    public function handle(TelegramWebHookRequest $request): JsonResponse
     {
         Log::debug('handler = ' . json_encode($request->post()));
 
