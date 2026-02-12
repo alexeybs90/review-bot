@@ -2,34 +2,34 @@
 
 namespace App\Repositories;
 
+use App\Helpers\ReviewBotHelper;
 use App\Models\Company;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class CompanyRepository
 {
-    const LIMIT = 10;
-
-    public function find($id)
+    public function find($id): ?Company
     {
         return Company::find($id);
     }
 
-    public function get($page = 0): \Illuminate\Database\Eloquent\Collection
+    public function get($page = 0): Collection
     {
         return Company::with('reviews')
             ->orderBy('name', 'ASC')
-            ->offset($page * self::LIMIT)
-            ->limit(self::LIMIT)
+            ->offset($page * ReviewBotHelper::COMPANY_LIMIT)
+            ->limit(ReviewBotHelper::COMPANY_LIMIT)
             ->get();
     }
 
-    public function getByName(string $name, $page = 0): \Illuminate\Database\Eloquent\Collection
+    public function getByName(string $name, $page = 0): Collection
     {
         return Company::with('reviews')
             ->where('name', 'LIKE', "%{$name}%")
             ->orderBy('name', 'ASC')
-            ->offset($page * self::LIMIT)
-            ->limit(self::LIMIT)
+            ->offset($page * ReviewBotHelper::COMPANY_LIMIT)
+            ->limit(ReviewBotHelper::COMPANY_LIMIT)
             ->get();
     }
 

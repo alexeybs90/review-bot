@@ -8,7 +8,8 @@ use Inertia\Inertia;
 Route::get('/', [ReviewBotController::class, 'home'])->name('home');
 Route::get('/test', [ReviewBotController::class, 'sendTest'])->name('test');
 Route::get('/set-webhook', [ReviewBotController::class, 'setWebhook'])->name('set-webhook');
-Route::post('/review-bot', [ReviewBotController::class, 'handle'])->name('review-bot')->withoutMiddleware([VerifyCsrfToken::class]);
+Route::post('/review-bot', [ReviewBotController::class, 'handle'])
+    ->name('review-bot')->withoutMiddleware([VerifyCsrfToken::class]);
 
 Route::get('dashboard', function () {
     return Inertia::render('Dashboard');

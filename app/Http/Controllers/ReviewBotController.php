@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\DTO\TelegramUpdate;
 use App\Http\Requests\TelegramWebHookRequest;
+use App\Services\BotResponseService;
 use App\Services\ReviewBotService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class ReviewBotController extends Controller
@@ -13,46 +14,28 @@ class ReviewBotController extends Controller
     public function __construct(protected ReviewBotService $service)
     {}
 
-    public function home()
+    public function home(BotResponseService $botResponseService): JsonResponse
     {
 //        Company::create(['name' => 'Сбербанк']);
-        $response = $this->service->info();
-        print_r($response);
+        return response()->json($botResponseService->info());
     }
 
-    public function sendTest()
+    public function sendTest(BotResponseService $botResponseService): JsonResponse
     {
-        $response = $this->service->sendTest();
-        print_r($response);
+        return response()->json($botResponseService->sendTest());
     }
 
-    public function setWebhook()
+    public function setWebhook(BotResponseService $botResponseService): JsonResponse
     {
-        $response = $this->service->setWebhook();
-        print_r($response);
+        return response()->json($botResponseService->setWebhook());
     }
 
     public function handle(TelegramWebHookRequest $request): JsonResponse
     {
         Log::debug('handler = ' . json_encode($request->post()));
+        $update = TelegramUpdate::fromArray($request->post());
 
-        if ($this->service->initMessageData($request->post('message'), $request->post('callback_query'))) {
-            return response()->json([]);
-        }
-
-        if ($this->service->handleTextRequest()) {
-            return response()->json([]);
-        }
-
-        if ($this->service->handleCallbackQueryRequest()) {
-            return response()->json([]);
-        }
-
-        if ($this->service->handleContextActions()) {
-            return response()->json([]);
-        }
-
-        $this->service->sendHello();
+        $this->service->handleUpdate($update);
 
         return response()->json([]);
     }
