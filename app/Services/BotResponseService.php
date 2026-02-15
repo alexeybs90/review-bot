@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Helpers\ReviewBotHelper;
+use App\Constants\ReviewBotConstants;
 use App\Lib\TelegramBot;
 use App\Models\Chat;
 use App\Models\Company;
@@ -76,11 +76,11 @@ class BotResponseService
             $keys[] = [
                 [
                     'text' => $company->name . ' - ' . $rating . ' ⭐ (' . count($reviews) . ')',
-                    'callback_data' => ReviewBotHelper::CALLBACK_ACTION_SHOW_REVIEW . ':' . $company->id,
+                    'callback_data' => ReviewBotConstants::CALLBACK_ACTION_SHOW_REVIEW . ':' . $company->id,
                 ],
                 [
                     'text' => 'Написать',
-                    'callback_data' => ReviewBotHelper::CALLBACK_ACTION_START_REVIEW . ':' . $company->id,
+                    'callback_data' => ReviewBotConstants::CALLBACK_ACTION_START_REVIEW . ':' . $company->id,
                 ],
             ];
         }
@@ -88,10 +88,10 @@ class BotResponseService
             $this->sendNotFound($chat);
             return null;
         }
-        if ($count > ($page * ReviewBotHelper::COMPANY_LIMIT + count($companies))) {
+        if ($count > ($page * ReviewBotConstants::COMPANY_LIMIT + count($companies))) {
             $keys[] = [[
                 'text' => 'Загрузить еще',
-                'callback_data' => ReviewBotHelper::CALLBACK_ACTION_COMPANY_LIST . ':' . ($page + 1) . ':' . $text,
+                'callback_data' => ReviewBotConstants::CALLBACK_ACTION_COMPANY_LIST . ':' . ($page + 1) . ':' . $text,
             ]];
         }
 
@@ -150,7 +150,7 @@ class BotResponseService
         if ($count > $page + 1) {
             $key = [[[
                 'text' => 'Следующий >>',
-                'callback_data' => ReviewBotHelper::CALLBACK_ACTION_SHOW_REVIEW . ':' . $company->id . ':' . ($page + 1),
+                'callback_data' => ReviewBotConstants::CALLBACK_ACTION_SHOW_REVIEW . ':' . $company->id . ':' . ($page + 1),
             ]]];
         }
 
@@ -184,7 +184,7 @@ class BotResponseService
         for ($i = 1; $i <= 5; $i ++) {
             $keys[] = [
                 'text' => $i,
-                'callback_data' => ReviewBotHelper::CALLBACK_ACTION_SET_GRADE . ':' . $company->id . ':' . $i,
+                'callback_data' => ReviewBotConstants::CALLBACK_ACTION_SET_GRADE . ':' . $company->id . ':' . $i,
             ];
         }
         $response = $this->bot->sendMessage($chat, $text, [
@@ -221,7 +221,7 @@ class BotResponseService
                 'keyboard' => [],
                 'inline_keyboard' => [[[
                     'text' => 'Сохранить',
-                    'callback_data' => ReviewBotHelper::CALLBACK_ACTION_SAVE_REVIEW,
+                    'callback_data' => ReviewBotConstants::CALLBACK_ACTION_SAVE_REVIEW,
                 ]]],
                 'one_time_keyboard' => true,
                 'resize_keyboard' => true
@@ -230,13 +230,13 @@ class BotResponseService
         return $response;
     }
 
-    public function sendRequestForSaveReview(string $chat, string $text)
+    public function sendRequestForSaveReview(string $chat, string $text): void
     {
         $response = $this->bot->sendMessage($chat, $text,
             [
                 'inline_keyboard' => [[[
                     'text' => 'Сохранить отзыв',
-                    'callback_data' => ReviewBotHelper::CALLBACK_ACTION_SAVE_REVIEW,
+                    'callback_data' => ReviewBotConstants::CALLBACK_ACTION_SAVE_REVIEW,
                 ]]]
             ]
         );

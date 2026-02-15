@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Helpers\ReviewBotHelper;
+use App\Constants\ReviewBotConstants;
 use App\Models\Company;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -18,8 +18,8 @@ class CompanyRepository
     {
         return Company::with('reviews')
             ->orderBy('name', 'ASC')
-            ->offset($page * ReviewBotHelper::COMPANY_LIMIT)
-            ->limit(ReviewBotHelper::COMPANY_LIMIT)
+            ->offset($page * ReviewBotConstants::COMPANY_LIMIT)
+            ->limit(ReviewBotConstants::COMPANY_LIMIT)
             ->get();
     }
 
@@ -28,8 +28,8 @@ class CompanyRepository
         return Company::with('reviews')
             ->where('name', 'LIKE', "%{$name}%")
             ->orderBy('name', 'ASC')
-            ->offset($page * ReviewBotHelper::COMPANY_LIMIT)
-            ->limit(ReviewBotHelper::COMPANY_LIMIT)
+            ->offset($page * ReviewBotConstants::COMPANY_LIMIT)
+            ->limit(ReviewBotConstants::COMPANY_LIMIT)
             ->get();
     }
 

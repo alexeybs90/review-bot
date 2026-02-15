@@ -16,7 +16,7 @@ class StartReviewAction
         protected BotResponseService $botResponseService)
     {}
 
-    public function handle(string $chat, int $companyId, int $chatId): void
+    public function execute(string $chat, int $companyId, int $chatId): void
     {
         $company = $this->companyRepository->find($companyId);
         if (!$company) {

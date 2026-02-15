@@ -4,12 +4,7 @@ namespace App\Providers;
 
 use App\Actions\SaveUserFileAction;
 use App\Lib\TelegramBot;
-use App\Repositories\ChatRepository;
-use App\Repositories\CompanyRepository;
-use App\Repositories\ContextRepository;
-use App\Repositories\ReviewRepository;
 use App\Services\BotResponseService;
-use App\Services\ReviewBotService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider

@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Helpers;
+namespace App\Constants;
 
-class ReviewBotHelper
+class ReviewBotConstants
 {
     const COMPANY_LIMIT = 10;
 

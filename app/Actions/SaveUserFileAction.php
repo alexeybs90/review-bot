@@ -12,7 +12,7 @@ class SaveUserFileAction
     public function __construct(protected TelegramBot $bot)
     {}
 
-    public function handle(string $tgFileId): ?string
+    public function execute(string $tgFileId): ?string
     {
         $fileData = $this->bot->getFile($tgFileId);
         $fileData = $fileData['result'] ?? [];
