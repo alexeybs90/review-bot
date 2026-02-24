@@ -3,7 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\ReviewFile;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Collection;
 
 class ReviewFileRepository
 {
@@ -12,9 +12,9 @@ class ReviewFileRepository
         return $file->save();
     }
 
-    public function findByReviewId(int $review_id)
+    public function findByReviewId(int $review_id): Collection
     {
-        return ReviewFile::where('review_id', $review_id)
+        return ReviewFile::query()->where('review_id', $review_id)
             ->orderBy('created_at', 'DESC')
             ->limit(3)
             ->get();

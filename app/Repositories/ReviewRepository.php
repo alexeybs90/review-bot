@@ -3,18 +3,19 @@
 namespace App\Repositories;
 
 use App\Models\Review;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class ReviewRepository
 {
-    public function findByCompanyId(int $companyId)
+    public function findByCompanyId(int $companyId): Collection
     {
-        return Review::where('company_id', $companyId)->get();
+        return Review::query()->where('company_id', $companyId)->get();
     }
 
     public function findByChatIdAndCompanyId(int $chatId, int $companyId): ?Review
     {
-        return Review::where('chat_id', $chatId)->where('company_id', $companyId)->first();
+        return Review::query()->where('chat_id', $chatId)->where('company_id', $companyId)->first();
     }
 
     public function save(Review $review): bool
@@ -24,7 +25,7 @@ class ReviewRepository
 
     public function findOneByCompanyId(int $companyId, $page = 0): ?Review
     {
-        return Review::with('reviewFiles')
+        return Review::query()->with('reviewFiles')
             ->where('company_id', $companyId)
             ->orderBy('created_at', 'DESC')
             ->offset($page)

@@ -9,7 +9,7 @@ class ContextRepository
 {
     public function findByChat($chat): ?Context
     {
-        $context = Context::where('chat', $chat)->first();
+        $context = Context::query()->where('chat', $chat)->first();
         Log::debug('read session context:' . ($context ?
             ' id=' . $context->id
             . ', chat=' . $context->chat
