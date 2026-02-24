@@ -3,18 +3,19 @@
 namespace App\Repositories;
 
 use App\Models\Review;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class ReviewRepository
 {
-    public function findByCompanyId(int $company_id)
+    public function findByCompanyId(int $companyId): Collection
     {
-        return Review::where('company_id', $company_id)->get();
+        return Review::query()->where('company_id', $companyId)->get();
     }
 
-    public function findByChatIdAndCompanyId(int $user_chat_id, int $company_id)
+    public function findByChatIdAndCompanyId(int $chatId, int $companyId): ?Review
     {
-        return Review::where('chat_id', $user_chat_id)->where('company_id', $company_id)->first();
+        return Review::query()->where('chat_id', $chatId)->where('company_id', $companyId)->first();
     }
 
     public function save(Review $review): bool
@@ -22,17 +23,17 @@ class ReviewRepository
         return $review->save();
     }
 
-    public function findOneByCompanyId(int $company_id, $page = 0)
+    public function findOneByCompanyId(int $companyId, $page = 0): ?Review
     {
-        return Review::with('reviewFiles')
-            ->where('company_id', $company_id)
+        return Review::query()->with('reviewFiles')
+            ->where('company_id', $companyId)
             ->orderBy('created_at', 'DESC')
             ->offset($page)
             ->first();
     }
 
-    public function countByCompanyId(int $company_id)
+    public function countByCompanyId(int $companyId): int
     {
-        return DB::table('reviews')->where('company_id', $company_id)->count();
+        return DB::table('reviews')->where('company_id', $companyId)->count();
     }
 }

@@ -5,11 +5,13 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', [ReviewBotController::class, 'home'])->name('home');
-Route::get('/test', [ReviewBotController::class, 'sendTest'])->name('test');
-Route::get('/set-webhook', [ReviewBotController::class, 'setWebhook'])->name('set-webhook');
-//Route::get('/review-bot', [ReviewBotController::class, 'handle'])->name('review-bot')->withoutMiddleware([VerifyCsrfToken::class]);
-Route::post('/review-bot', [ReviewBotController::class, 'handle'])->name('review-bot1')->withoutMiddleware([VerifyCsrfToken::class]);
+Route::controller(ReviewBotController::class)->group(function () {
+    Route::get('/', 'home')->name('home');
+    Route::get('/test', 'sendTest')->name('test');
+    Route::get('/set-webhook', 'setWebhook')->name('set-webhook');
+    Route::post('/review-bot', 'handle')
+        ->name('review-bot')->withoutMiddleware([VerifyCsrfToken::class]);
+});
 
 Route::get('dashboard', function () {
     return Inertia::render('Dashboard');

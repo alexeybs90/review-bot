@@ -2,68 +2,40 @@
 
 namespace App\Http\Controllers;
 
-use App\Lib\TelegramBot;
-use App\Repositories\ChatRepository;
-use App\Repositories\CompanyRepository;
-use App\Repositories\ContextRepository;
-use App\Repositories\ReviewRepository;
+use App\DTO\TelegramUpdate;
+use App\Http\Requests\TelegramWebHookRequest;
+use App\Services\BotResponseService;
 use App\Services\ReviewBotService;
-use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 
 class ReviewBotController extends Controller
 {
-    public ReviewBotService $service;
+    public function __construct(protected ReviewBotService $service)
+    {}
 
-    public function __construct() {
-        $companyRepository = new CompanyRepository();
-        $contextRepository = new ContextRepository();
-        $reviewRepository = new ReviewRepository();
-        $chatRepository = new ChatRepository();
-        $telegramBot = new TelegramBot(config('app.telegram_bot_api_key'), config('app.telegram_bot_api_webhook_url'));
-        $this->service = new ReviewBotService($companyRepository, $contextRepository, $reviewRepository, $chatRepository, $telegramBot);
-    }
-
-    public function home(Request $request)
+    public function home(BotResponseService $botResponseService): JsonResponse
     {
 //        Company::create(['name' => 'Сбербанк']);
-        $response = $this->service->info();
-        print_r($response);
+        return response()->json($botResponseService->info());
     }
 
-    public function sendTest(Request $request)
+    public function sendTest(BotResponseService $botResponseService): JsonResponse
     {
-        $response = $this->service->sendTest();
-        print_r($response);
+        return response()->json($botResponseService->sendTest());
     }
 
-    public function setWebhook(Request $request)
+    public function setWebhook(BotResponseService $botResponseService): JsonResponse
     {
-        $response = $this->service->setWebhook();
-        print_r($response);
+        return response()->json($botResponseService->setWebhook());
     }
 
-    public function handle(Request $request)
+    public function handle(TelegramWebHookRequest $request): JsonResponse
     {
         Log::debug('handler = ' . json_encode($request->post()));
+        $update = TelegramUpdate::fromArray($request->post());
 
-        if ($this->service->initMessageData($request->post('message'), $request->post('callback_query'))) {
-            return response()->json([]);
-        }
-
-        if ($this->service->handleTextRequest()) {
-            return response()->json([]);
-        }
-
-        if ($this->service->handleCallbackQueryRequest()) {
-            return response()->json([]);
-        }
-
-        if ($this->service->handleContextActions()) {
-            return response()->json([]);
-        }
-
-        $this->service->sendHello();
+        $this->service->handleUpdate($update);
 
         return response()->json([]);
     }

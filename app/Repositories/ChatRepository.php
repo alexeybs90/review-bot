@@ -6,14 +6,14 @@ use App\Models\Chat;
 
 class ChatRepository
 {
-    public function find(int $id)
+    public function find(int $id): ?Chat
     {
         return Chat::find($id);
     }
 
-    public function findByChat(string $chat)
+    public function findByChat(string $chat): ?Chat
     {
-        return Chat::where('chat', $chat)->first();
+        return Chat::query()->where('chat', $chat)->first();
     }
 
     public function create(string $chat, string $name)
