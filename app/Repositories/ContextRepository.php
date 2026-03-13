@@ -3,12 +3,24 @@
 namespace App\Repositories;
 
 use App\Models\Context;
+use Illuminate\Support\Facades\Log;
 
 class ContextRepository
 {
-    public function findByChat($chat)
+    public function findByChat($chat): ?Context
     {
-        return Context::where('chat', $chat)->first();
+        $context = Context::query()->where('chat', $chat)->first();
+        Log::debug('read session context:' . ($context ?
+            ' id=' . $context->id
+            . ', chat=' . $context->chat
+            . ', company_id=' . $context->company_id
+            . ', grade=' . $context->grade
+            . ', status=' . $context->status
+            . ', comment=' . $context->comment
+            . ', files=' . $context->files
+            : '')
+        );
+        return $context;
     }
 
     public function delete(Context $context): ?bool
@@ -18,7 +30,15 @@ class ContextRepository
 
     public function save(Context $context): bool
     {
-        return $context->save();
+        $saved = $context->save();
+        Log::debug('set session context: id=' . $context->id
+            . ', chat=' . $context->chat
+            . ', company_id=' . $context->company_id
+            . ', grade=' . $context->grade
+            . ', status=' . $context->status
+            . ', comment=' . $context->comment
+            . ', files=' . $context->files);
+        return $saved;
     }
 
     public function reset($chat): ?bool

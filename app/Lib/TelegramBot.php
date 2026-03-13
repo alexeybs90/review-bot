@@ -6,18 +6,18 @@ use Illuminate\Support\Facades\Http;
 
 class TelegramBot
 {
-    protected string $api_key = '';
-    protected string $api_webhook_url = '';
+    protected string $apiKey = '';
+    protected string $apiWebhookUrl = '';
 
-    public function __construct(string $api_key, string $api_webhook_url)
+    public function __construct(string $apiKey, string $apiWebhookUrl)
     {
-        $this->api_key = $api_key;
-        $this->api_webhook_url = $api_webhook_url;
+        $this->apiKey = $apiKey;
+        $this->apiWebhookUrl = $apiWebhookUrl;
     }
 
     public function apiUrl(): string
     {
-        return 'https://api.telegram.org/bot' . $this->api_key . '/';
+        return 'https://api.telegram.org/bot' . $this->apiKey . '/';
     }
 
     public function info()
@@ -25,25 +25,38 @@ class TelegramBot
         return Http::get($this->apiUrl() . 'getWebhookInfo')->json();
     }
 
-    public function sendMessage(string $chat, string $text, array $reply_markup = null)
+    public function sendMessage(string $chat, string $text, array $replyMarkup = null)
     {
         $data = [
             'chat_id' => $chat,
             'text' => $text,
         ];
-        if ($reply_markup) {
-            $data['reply_markup'] = json_encode($reply_markup);
+        if ($replyMarkup) {
+            $data['reply_markup'] = json_encode($replyMarkup);
         }
         return Http::post($this->apiUrl() . 'sendMessage', $data)->json();
     }
 
-    public function editMessageText(string $chat, int $message_id, string $text, array $reply_markup = null)
+    public function sendPhotos(string $chat, $files)
+    {
+        $media = [];
+        foreach ($files as $file) {
+            $media[] = ['type' => 'photo', 'media' => $file->file_id];
+        }
+        $data = [
+            'chat_id' => $chat,
+            'media' => $media,
+        ];
+        return Http::post($this->apiUrl() . 'sendMediaGroup', $data)->json();
+    }
+
+    public function editMessageText(string $chat, int $messageId, string $text, array $replyMarkup = null)
     {
         $data = [
             'chat_id' => $chat,
-            'message_id' => $message_id,
+            'message_id' => $messageId,
             'text' => $text,
-            'reply_markup' => $reply_markup ? json_encode($reply_markup) : null
+            'reply_markup' => $replyMarkup ? json_encode($replyMarkup) : null
         ];
         return Http::post($this->apiUrl() . 'editMessageText', $data)->json();
     }
@@ -51,7 +64,20 @@ class TelegramBot
     public function setWebhook()
     {
         return Http::get($this->apiUrl() . 'setWebhook', [
-            'url' => $this->api_webhook_url,
+            'url' => $this->apiWebhookUrl,
         ])->json();
+    }
+
+    public function getFile(string $fileId)
+    {
+        $data = [
+            'file_id' => $fileId,
+        ];
+        return Http::post($this->apiUrl() . 'getFile', $data)->json();
+    }
+
+    public function fileUrl($filePath): string
+    {
+        return 'https://api.telegram.org/file/bot' . $this->apiKey . '/' . $filePath;
     }
 }
