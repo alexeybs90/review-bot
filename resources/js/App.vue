@@ -1,36 +1,50 @@
 <template>
-    <div class="min-h-screen bg-gray-100">
-        <!-- Навигация (общая для всех страниц) -->
-        <nav class="bg-white shadow mb-8 p-4">
-            <div class="container mx-auto space-x-4">
-                <router-link
-                    :to="{ name: 'companies.index' }"
-                    class="text-blue-600 font-bold"
-                >
-                    Companies CRUD
-                </router-link>
+    <div class="min-h-screen bg-gray-50 font-sans antialiased text-gray-900">
+        <!-- Шапка -->
+        <nav class="bg-white border-b border-gray-200 sticky top-0 z-10">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <!-- Логотип -->
+                        <div class="flex-shrink-0 flex items-center cursor-pointer" @click="$router.push('/')">
+                            <div class="bg-indigo-600 p-2 rounded-lg">
+                                <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1" />
+                                </svg>
+                            </div>
+                            <span class="ml-3 text-xl font-bold tracking-tight text-gray-900">CorpManager</span>
+                        </div>
 
-                <router-link
-                    :to="{ name: 'companies.create' }"
-                    class="text-gray-600 hover:text-blue-500"
-                >
-                    Add New
-                </router-link>
+                        <!-- Навигация -->
+                        <div class="hidden sm:ml-10 sm:flex sm:space-x-8">
+                            <router-link
+                                :to="{ name: 'companies.index' }"
+                                class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors"
+                                :class="[$route.name === 'companies.index' ? 'border-indigo-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700']"
+                            >
+                                Dashboard
+                            </router-link>
+                        </div>
+                    </div>
+                </div>
             </div>
         </nav>
 
-        <!-- Место, куда Vue Router будет вставлять ваши компоненты (Index, Create, Edit) -->
-        <main class="container mx-auto bg-white p-6 rounded shadow">
-            <router-view></router-view>
-        </main>
+        <!-- Основной контент -->
+        <div class="py-10">
+            <main class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                <!-- Анимация перехода между страницами -->
+                <router-view v-slot="{ Component }">
+                    <transition
+                        enter-active-class="transition ease-out duration-200"
+                        enter-from-class="opacity-0 translate-y-4"
+                        enter-to-class="opacity-100 translate-y-0"
+                        mode="out-in"
+                    >
+                        <component :is="Component" />
+                    </transition>
+                </router-view>
+            </main>
+        </div>
     </div>
 </template>
-
-<script setup>
-// Здесь можно добавить общую логику для всего приложения, если нужно
-</script>
-
-<style>
-/* Общие стили */
-body { font-family: sans-serif; }
-</style>
