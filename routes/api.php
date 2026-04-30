@@ -8,6 +8,8 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
+Route::delete('company-images/{image}', [CompanyController::class, 'destroyImage']);
+
 Route::apiResources([
     'companies' => CompanyController::class,
 ]);

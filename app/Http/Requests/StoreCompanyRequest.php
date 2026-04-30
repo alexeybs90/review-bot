@@ -23,6 +23,7 @@ class StoreCompanyRequest extends FormRequest
     {
         return [
             'name' => 'required|min:3',
+            'images.*' => 'image|mimes:jpg,jpeg,png|max:2048'
         ];
     }
 }

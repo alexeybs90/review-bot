@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Http\Requests\StoreCompanyRequest;
 use App\Http\Requests\UpdateCompanyRequest;
+use App\Models\CompanyImage;
 use App\Repositories\CompanyRepository;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class CompanyController extends Controller
 {
@@ -30,7 +32,16 @@ class CompanyController extends Controller
      */
     public function store(StoreCompanyRequest $request)
     {
-        return response()->json(Company::create($request->all()), 201);
+        $company = Company::create($request->all());
+
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $file) {
+                $path = $file->store('companies/' . $company->id, 'public');
+                $company->images()->create(['path' => $path, 'original_name' => $file->getClientOriginalName()]);
+            }
+        }
+
+        return response()->json($company->load('reviews')->load('images'), 201);
     }
 
     /**
@@ -38,7 +49,7 @@ class CompanyController extends Controller
      */
     public function show(Company $company)
     {
-        return response()->json($company->load('reviews'));
+        return response()->json($company->load('reviews')->load('images'));
     }
 
     /**
@@ -47,7 +58,15 @@ class CompanyController extends Controller
     public function update(UpdateCompanyRequest $request, Company $company)
     {
         $company->update($request->all());
-        return response()->json($company->load('reviews'));
+
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $file) {
+                $path = $file->store('companies/' . $company->id, 'public');
+                $company->images()->create(['path' => $path, 'original_name' => $file->getClientOriginalName()]);
+            }
+        }
+
+        return response()->json($company->load('reviews')->load('images'));
     }
 
     /**
@@ -56,6 +75,14 @@ class CompanyController extends Controller
     public function destroy(Company $company)
     {
         $company->delete();
+        return response()->noContent();
+    }
+
+    public function destroyImage(CompanyImage $image)
+    {
+        Storage::disk('public')->delete($image->path);
+        $image->delete();
+
         return response()->noContent();
     }
 }
