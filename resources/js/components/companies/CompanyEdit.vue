@@ -1,9 +1,19 @@
 <template>
     <div class="max-w-3x2 mx-auto">
-        <!-- Кнопка назад -->
+        <div v-if="pageLoading" class="animate-pulse space-y-6 p-8 bg-white dark:bg-gray-800 rounded-xl">
+            <div class="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
+            <div class="grid grid-cols-2 gap-6">
+                <div class="h-12 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                <div class="h-12 bg-gray-200 dark:bg-gray-700 rounded"></div>
+            </div>
+            <div class="h-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
+        </div>
+        <template v-else>
+
         <button @click="$router.back()" class="mb-6 flex items-center text-sm text-gray-500 hover:text-indigo-600 transition-colors">
-            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-            Back to list
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            Назад
         </button>
 
         <div class="bg-white shadow-sm rounded-xl overflow-hidden border border-gray-100 dark:bg-gray-800 dark:border-gray-600">
@@ -11,28 +21,40 @@
                 <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-300 mb-6">{{ (id ? 'Редактировать' : 'Создать') }} компанию</h2>
 
                 <form @submit.prevent="updateCompany" class="space-y-6">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Наименование</label>
-                        <input v-model="company.name" type="text" placeholder="e.g. Acme Corp"
-                               class="block w-full px-4 py-3 rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-700 dark:text-white focus:border-indigo-500 focus:ring-indigo-500 transition-shadow"
-                               :class="{'border-red-400': errors.name}">
-                        <p v-if="errors.name" class="mt-1 text-sm text-red-600">{{ errors.name[0] }}</p>
-                    </div>
+                    <form-text id="name" label="Наименование" v-model="company.name"
+                               placeholder="e.g. Acme Corp" :error="errors.name?.[0]"></form-text>
 
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Email</label>
-                        <input v-model="company.email" type="email" placeholder="contact@company.com"
-                               class="block w-full px-4 py-3 rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-700 dark:text-white focus:border-indigo-500 focus:ring-indigo-500 transition-shadow shadow-sm"
-                               :class="{'border-red-400': errors.email}">
-                        <p v-if="errors.email" class="mt-1 text-sm text-red-600">{{ errors.email[0] }}</p>
-                    </div>
+                    <form-text id="email" label="Email" v-model="company.email"
+                               placeholder="contact@company.com" :error="errors.email?.[0]"></form-text>
+
+                    <form-text id="phone" label="Телефон" v-model="company.phone"
+                               placeholder="+7 (___) ___ __ __" :error="errors.phone?.[0]"></form-text>
+
+                    <form-text id="address" label="Адрес" v-model="company.address"
+                               placeholder="город, улица, дом" :error="errors.address?.[0]"></form-text>
+
+                    <form-text id="website" label="Сайт" v-model="company.website"
+                               placeholder="https://example.com" :error="errors.website?.[0]"></form-text>
+
+                    <form-textarea id="description" label="Описание" v-model="company.description"
+                                   placeholder="" :error="errors.description?.[0]"></form-textarea>
+
+                    <form-checkbox id="is_dealer" label="Дилер" v-model="company.is_dealer"
+                                   :error="errors.is_dealer?.[0]"></form-checkbox>
+
+                    <form-text id="inn" label="ИНН" v-model="company.inn"
+                               placeholder="https://example.com" :error="errors.inn?.[0]"></form-text>
+
+                    <form-select id="company_type" label="Тип деятельности" v-model="company.company_type"
+                                 :error="errors.company_type?.[0]"
+                                 :options="companyTypeOptions"></form-select>
 
                     <div v-if="company.images && company.images.length" class="space-y-2">
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Изображения</label>
                         <div class="grid grid-cols-4 gap-4">
                             <div v-for="image in company.images" :key="image.id" class="relative group">
-                                <img :src="image.url" class="h-75 w-full object-cover rounded-lg border shadow-sm">
-                                <!-- Кнопка удаления картинки -->
+                                <img :src="image.url" class="h-75 w-full object-cover rounded-lg border shadow-sm cursor-pointer"
+                                     @click="openImageModal(image.url)">
                                 <button type="button" @click="deleteExistingImage(image.id)"
                                         class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
@@ -64,6 +86,12 @@
                 </form>
             </div>
 
+            <Modal v-model="isImageModalOpen" maxWidth="max">
+                <div class="p-2 bg-gray-900 flex items-center justify-center">
+                    <img :src="activeImageUrl" class="max-h-[85vh] max-w-full object-contain rounded-lg shadow-md">
+                </div>
+            </Modal>
+
             <!-- Секция отзывов (Review List) -->
             <div class="bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700 p-8">
                 <h3 class="text-lg font-bold text-gray-800 dark:text-gray-300 mb-4 flex items-center">
@@ -79,6 +107,9 @@
                 <p v-else class="text-gray-400 dark:text-gray-400 text-sm italic">No reviews yet for this company.</p>
             </div>
         </div>
+        </template>
+
+        <Loading :active="pageLoading" message="Processing request..." />
     </div>
 </template>
 
@@ -89,6 +120,32 @@ import { useRouter, useRoute } from 'vue-router';
 import Swal from 'sweetalert2';
 import swalConfirm from "../../config/swalConfirm";
 import swalToastSuccess from "../../config/swalToastSuccess";
+import FormText from "../shared/FormText.vue";
+import FormSelect from "../shared/FormSelect.vue";
+import FormCheckbox from "../shared/FormCheckbox.vue";
+import FormTextarea from "../shared/FormTextarea.vue";
+import Modal from "../shared/Modal.vue";
+import Loading from "../shared/Loading.vue";
+
+const pageLoading = ref(true);
+
+const isImageModalOpen = ref(false);
+const activeImageUrl = ref('');
+
+// Функция для открытия картинки в модалке
+const openImageModal = (url) => {
+    activeImageUrl.value = url;
+    isImageModalOpen.value = true;
+};
+
+const companyTypeOptions = [
+    {value: 0, text: '-'},
+    {value: 1, text: 'Продуктовый магазин'},
+    {value: 2, text: 'Общепит'},
+    {value: 3, text: 'Производство пива'},
+    {value: 4, text: 'it услуги'},
+    {value: 5, text: 'Ремонт авто'},
+];
 
 const fileInput = ref(null);
 
@@ -99,6 +156,13 @@ let id = ref(0);
 const company = ref({
     name: '',
     email: '',
+    phone: '',
+    address: '',
+    website: '',
+    description: '',
+    is_dealer: 0,
+    inn: '',
+    company_type: 0,
     reviews: [],
     images: [],
 });
@@ -114,6 +178,7 @@ const handleFilesUpload = (event) => {
 };
 
 const getCompany = async () => {
+    pageLoading.value = true;
     id = parseInt(route.params.id)
     if (!id) {
         company.value.name = ''
@@ -126,10 +191,13 @@ const getCompany = async () => {
         company.value = response.data;
     } catch (e) {
         console.error('Could not fetch company');
+    } finally {
+        pageLoading.value = false;
     }
 };
 
 const updateCompany = async () => {
+    pageLoading.value = true;
     id = parseInt(route.params.id)
     errors.value = {};
 
@@ -137,8 +205,20 @@ const updateCompany = async () => {
     if (id) {
         formData.append('_method', 'PUT'); // Имитация PUT для Laravel
     }
-    formData.append('name', company.value.name);
-    formData.append('email', company.value.email);
+
+    Object.keys(company.value).forEach(key => {
+        let value = company.value[key];
+
+        if (value === null) value = '';
+
+        if (typeof value === 'boolean') value = value ? 1 : 0;
+
+        if (key === 'images' || key === 'reviews') return;
+
+        formData.append(key, value);
+    });
+    // formData.append('name', company.value.name);
+    // formData.append('email', company.value.email);
 
     newFiles.value.forEach((file, index) => {
         formData.append(`images[]`, file);
@@ -173,22 +253,26 @@ const updateCompany = async () => {
         if (e.response.status === 422) {
             errors.value = e.response.data.errors;
         }
+    } finally {
+        pageLoading.value = false;
     }
 };
 
 const deleteExistingImage = async (imageId) => {
-
     const confirmOptions = swalConfirm
     confirmOptions.title = 'Удалить изображение?'
     const result = await Swal.fire(confirmOptions);
     if (!result.isConfirmed) return;
 
+    pageLoading.value = true;
     try {
         await axios.delete(`/api/company-images/${imageId}`);
         // Удаляем из локального массива, чтобы картинка исчезла
         company.value.images = company.value.images.filter(img => img.id !== imageId);
     } catch (e) {
         alert('Could not delete image');
+    } finally {
+        pageLoading.value = false;
     }
 };
 

@@ -25,7 +25,10 @@
                     <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-600">
                     <tr v-for="company in companies" :key="company.id" class="hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors duration-150">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-gray-900 dark:text-gray-300">{{ company.name }}</div>
+                            <div class="text-sm font-medium text-gray-900 dark:text-gray-300">
+                                <router-link :to="{ name: 'companies.edit', params: { id: company.id } }">
+                                    {{ company.name }}</router-link>
+                            </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                             {{ company.email }}
